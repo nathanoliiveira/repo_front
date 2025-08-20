@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { sla } from "./teste";
+import React, { useState,useRef } from "react";
 
 const IP_ESP32 = "http://192.168.225.111"; // Substitua pelo IP do seu ESP32
 
@@ -7,10 +6,12 @@ const ControlPanel: React.FC = () => {
   const [lightOn, setLightOn] = useState(false);
   const [movementOn, setMovementOn] = useState(false);
   const [mouthOpen, setMouthOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const handleLight = async () => {
+    console.log("light");
     try {
-      sla()
       await fetch(`${IP_ESP32}/olhos`);
       setLightOn(true);
       setTimeout(() => setLightOn(false), 1500);
@@ -20,6 +21,7 @@ const ControlPanel: React.FC = () => {
   };
 
   const handleMovement = async () => {
+    console.log("movement");
     try {
       await fetch(`${IP_ESP32}/bracos`);
       setMovementOn(true);
@@ -30,6 +32,7 @@ const ControlPanel: React.FC = () => {
   };
 
   const handleMouth = async () => {
+    console.log("mouth");
     try {
       await fetch(`${IP_ESP32}/boca`);
       setMouthOpen(true);
@@ -39,8 +42,59 @@ const ControlPanel: React.FC = () => {
     }
   };
 
+    const toggleListening = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta reconhecimento de voz.");
+      return;
+    }
+
+    // Se já está ouvindo → parar
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+
+    // Criar nova instância
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((r: any) => r[0].transcript)
+        .join("")
+        .toLowerCase();
+
+      console.log("Falando:", transcript);
+
+      if (transcript.includes("acender") && transcript.includes("olho")) handleLight();
+      if (transcript.includes("mexer") && transcript.includes("braço")) handleMovement();
+      if (transcript.includes("abrir") && transcript.includes("boca")) handleMouth();
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
   return (
     <div className="flex flex-col items-center gap-6 p-6 w-full max-w-md mx-auto">
+
+      <button
+        onClick={toggleListening}
+        className={`px-6 py-3 rounded-xl shadow-lg font-bold text-white transition 
+          ${listening ? "bg-red-600 animate-pulse" : "bg-purple-700 hover:bg-purple-800"}`}
+      >
+        🎙️ {listening ? "Parar" : "Falar comando"}
+      </button>
+
       <div className="grid grid-cols-2 gap-6 w-full">
         {/* Mexer braços */}
         <div className="flex flex-col items-center">
